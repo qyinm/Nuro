@@ -198,18 +198,21 @@ async function endGame() {
     gameLoopTimer = null;
   }
 
+  // Generate session record FIRST (synchronously) before any async operations
+  // This ensures lastSession is set immediately when status becomes 'finished'
+  if (gameStore.startedAt) {
+    lastSession.value = gameStore.finishSession();
+  }
+
   // Clear interrupted session
   await storage.clearInterruptedSession();
 
-  // Generate and save session record
-  if (gameStore.startedAt) {
-    lastSession.value = gameStore.finishSession();
-    if (lastSession.value) {
-      await statsStore.addSession(lastSession.value);
-      await storage.saveSettings({
-        adaptiveNLevel: gameStore.adaptiveNLevel,
-      });
-    }
+  // Save session to stats if we have one
+  if (lastSession.value) {
+    await statsStore.addSession(lastSession.value);
+    await storage.saveSettings({
+      adaptiveNLevel: gameStore.adaptiveNLevel,
+    });
   }
 }
 
