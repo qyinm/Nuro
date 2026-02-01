@@ -135,7 +135,7 @@ export const useGameStore = defineStore('game', () => {
 
     // Check if session is complete
     if (currentTrialIndex.value >= sequence.value.length) {
-      finishSession();
+      status.value = 'finished';
     }
   }
 
