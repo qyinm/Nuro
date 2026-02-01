@@ -1,8 +1,12 @@
-import { ref, onMounted } from 'vue';
+import { ref, readonly } from 'vue';
 import type { AudioState } from '../types/game';
-import { VOICE_LOADING_TIMEOUT_MS } from '../utils/constants';
+import { AUDIO_LETTERS } from '../utils/constants';
 import { logger } from '../utils/logger';
 
+/**
+ * Audio composable using pre-recorded WAV files
+ * Provides consistent, high-quality audio across all browsers
+ */
 export function useAudio() {
   const state = ref<AudioState>({
     available: false,
@@ -12,131 +16,97 @@ export function useAudio() {
 
   const isReady = ref(false);
 
+  // Audio cache for preloaded sounds
+  const audioCache = new Map<string, HTMLAudioElement>();
+
+  // Currently playing audio
+  let currentAudio: HTMLAudioElement | null = null;
+
   /**
-   * Initialize audio system and detect available voices
+   * Initialize audio by preloading all letter sounds
    */
   async function initialize(): Promise<void> {
-    if (typeof speechSynthesis === 'undefined') {
-      state.value.available = false;
-      state.value.errorMessage = 'Speech synthesis not supported in this browser';
-      return;
-    }
-
-    // Get voices - may need to wait for them to load
-    let voices = speechSynthesis.getVoices();
-
-    if (voices.length === 0) {
-      // Wait for voices to load
-      await new Promise<void>((resolve) => {
-        const handler = () => {
-          voices = speechSynthesis.getVoices();
-          speechSynthesis.removeEventListener('voiceschanged', handler);
-          resolve();
-        };
-        speechSynthesis.addEventListener('voiceschanged', handler);
-
-        // Timeout after 2 seconds
-        setTimeout(() => {
-          speechSynthesis.removeEventListener('voiceschanged', handler);
-          resolve();
-        }, VOICE_LOADING_TIMEOUT_MS);
-      });
-    }
-
-    voices = speechSynthesis.getVoices();
-
-    if (voices.length === 0) {
-      state.value.available = false;
-      state.value.errorMessage = 'No speech voices available on this system';
-      return;
-    }
-
-    // Select a voice - prefer English voices
-    const englishVoice = voices.find(v => v.lang.startsWith('en'));
-    state.value.selectedVoice = englishVoice || voices[0];
-    state.value.available = true;
-    state.value.errorMessage = null;
-
-    // Pre-warm the TTS engine
-    await prewarm();
-
-    isReady.value = true;
-  }
-
-  /**
-   * Pre-warm the TTS engine to reduce first-call latency
-   */
-  async function prewarm(): Promise<void> {
-    if (!state.value.available) return;
-
     try {
-      const utterance = new SpeechSynthesisUtterance('');
-      utterance.volume = 0;
-      if (state.value.selectedVoice) {
-        utterance.voice = state.value.selectedVoice;
-      }
-      speechSynthesis.speak(utterance);
-    } catch (e) {
-      // Ignore prewarm errors
+      // Preload all audio files
+      const loadPromises = AUDIO_LETTERS.map(async (letter) => {
+        const audio = new Audio(chrome.runtime.getURL(`audio/${letter}.wav`));
+        audio.preload = 'auto';
+
+        return new Promise<void>((resolve, reject) => {
+          audio.addEventListener('canplaythrough', () => {
+            audioCache.set(letter, audio);
+            resolve();
+          }, { once: true });
+
+          audio.addEventListener('error', () => {
+            reject(new Error(`Failed to load audio for letter ${letter}`));
+          }, { once: true });
+
+          // Start loading
+          audio.load();
+        });
+      });
+
+      await Promise.all(loadPromises);
+
+      state.value = {
+        available: true,
+        selectedVoice: null,
+        errorMessage: null,
+      };
+      isReady.value = true;
+    } catch (error) {
+      logger.error('Failed to initialize audio:', error);
+      state.value = {
+        available: false,
+        selectedVoice: null,
+        errorMessage: 'Failed to load audio files',
+      };
+      isReady.value = false;
     }
   }
 
   /**
-   * Speak a letter
+   * Play the audio for a specific letter
    */
-  function speakLetter(letter: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (!state.value.available) {
-        resolve();  // Fail silently if not available
-        return;
-      }
+  function speakLetter(letter: string): void {
+    if (!isReady.value) {
+      logger.error('Audio not ready');
+      return;
+    }
 
-      try {
-        // Cancel any ongoing speech
-        speechSynthesis.cancel();
+    const upperLetter = letter.toUpperCase();
+    const cachedAudio = audioCache.get(upperLetter);
 
-        const utterance = new SpeechSynthesisUtterance(letter);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
+    if (!cachedAudio) {
+      logger.error(`No audio found for letter: ${upperLetter}`);
+      return;
+    }
 
-        if (state.value.selectedVoice) {
-          utterance.voice = state.value.selectedVoice;
-        }
+    // Stop any currently playing audio
+    stop();
 
-        utterance.onend = () => resolve();
-        utterance.onerror = (event) => {
-          logger.error('Speech error:', event.error);
-          state.value.errorMessage = `Speech error: ${event.error}`;
-          resolve();  // Don't reject, just continue
-        };
-
-        speechSynthesis.speak(utterance);
-      } catch (e) {
-        logger.error('Speech synthesis error:', e);
-        state.value.errorMessage = 'Speech synthesis failed';
-        resolve();  // Don't reject, just continue
-      }
+    // Clone the audio element to allow overlapping plays
+    currentAudio = cachedAudio.cloneNode() as HTMLAudioElement;
+    currentAudio.play().catch((error) => {
+      logger.error('Failed to play audio:', error);
     });
   }
 
   /**
-   * Stop any ongoing speech
+   * Stop any currently playing audio
    */
   function stop(): void {
-    if (typeof speechSynthesis !== 'undefined') {
-      speechSynthesis.cancel();
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio = null;
     }
   }
 
-  // Initialize on mount
-  onMounted(() => {
-    initialize();
-  });
-
   return {
-    state,
-    isReady,
+    state: readonly(state),
+    isReady: readonly(isReady),
     initialize,
     speakLetter,
     stop,
