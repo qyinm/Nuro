@@ -140,14 +140,11 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function finishSession(): Session | null {
-    console.log('finishSession called, startedAt:', startedAt.value);
     if (startedAt.value === null) {
-      console.log('finishSession returning null - startedAt is null');
       return null;
     }
 
     status.value = 'finished';
-    console.log('status set to finished');
 
     const session = generateSessionRecord(
       sessionId.value,
@@ -158,7 +155,6 @@ export const useGameStore = defineStore('game', () => {
       true,
       startedAt.value
     );
-    console.log('session generated:', session);
 
     // Update adaptive level if enabled
     if (adaptiveMode.value) {
