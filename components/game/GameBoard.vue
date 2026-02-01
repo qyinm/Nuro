@@ -56,7 +56,7 @@ const cells = computed(() => {
 .cell-active {
   background-color: var(--accent-light);
   transform: scale(1.05);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
 }
 
 .cell-correct {

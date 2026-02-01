@@ -150,7 +150,7 @@ const yLabels = [0, 50, 100];
 }
 
 .area-fill {
-  fill: rgba(255, 255, 255, 0.05);
+  fill: rgba(0, 0, 0, 0.05);
 }
 
 .trend-line {
