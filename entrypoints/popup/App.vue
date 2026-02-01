@@ -21,6 +21,7 @@ import TrendChart from '../../components/stats/TrendChart.vue';
 import SessionHistory from '../../components/stats/SessionHistory.vue';
 import AccuracyByLevel from '../../components/stats/AccuracyByLevel.vue';
 import SettingsPanel from '../../components/settings/SettingsPanel.vue';
+import Tutorial from '../../components/onboarding/Tutorial.vue';
 
 const gameStore = useGameStore();
 const statsStore = useStatsStore();
@@ -44,6 +45,9 @@ const previousLevel = ref(0);
 // Session recovery
 const interruptedSession = ref<InterruptedSession | null>(null);
 const showResumeDialog = ref(false);
+
+// Tutorial
+const showTutorial = ref(false);
 
 // Keyboard handling
 const keyboard = useKeyboard({
@@ -91,7 +95,7 @@ const levelChange = computed(() => {
 });
 
 const showNav = computed(() =>
-  gameStore.status === 'idle' || gameStore.status === 'finished'
+  !showTutorial.value && (gameStore.status === 'idle' || gameStore.status === 'finished')
 );
 
 // Game loop
@@ -305,6 +309,13 @@ async function handleClearData() {
   }
 }
 
+// Tutorial
+async function handleTutorialComplete() {
+  showTutorial.value = false;
+  settings.value.hasCompletedOnboarding = true;
+  await storage.saveSettings({ hasCompletedOnboarding: true });
+}
+
 // Initialize
 onMounted(async () => {
   // Load settings
@@ -314,11 +325,18 @@ onMounted(async () => {
   gameStore.soundEffectsEnabled = settings.value.soundEffectsEnabled;
   gameStore.setNLevel(settings.value.defaultNLevel);
 
+  // Show tutorial for first-time users
+  if (!settings.value.hasCompletedOnboarding) {
+    showTutorial.value = true;
+  }
+
   // Load stats
   await statsStore.loadSessions();
 
-  // Check for interrupted session
-  await checkForInterruptedSession();
+  // Check for interrupted session (only if not showing tutorial)
+  if (!showTutorial.value) {
+    await checkForInterruptedSession();
+  }
 
   // Initialize audio
   audio.initialize();
@@ -340,8 +358,13 @@ onMounted(async () => {
     </header>
 
     <main class="main">
+      <!-- Tutorial -->
+      <template v-if="showTutorial">
+        <Tutorial @complete="handleTutorialComplete" />
+      </template>
+
       <!-- Game View -->
-      <template v-if="currentView === 'game'">
+      <template v-else-if="currentView === 'game'">
         <!-- Idle State -->
         <template v-if="gameStore.status === 'idle'">
           <GameBoard
