@@ -1,5 +1,5 @@
 {
-  "name": "dual-nback",
+  "name": "nuro-dual-nback",
   "description": "Dual N-Back cognitive training Chrome extension",
   "private": true,
   "version": "1.0.0",

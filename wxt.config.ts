@@ -4,12 +4,13 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
   manifest: {
-    name: 'Dual N-Back',
+    name: 'Nuro - Dual N-Back Master',
+    short_name: 'Nuro',
     description: 'Train your working memory with dual n-back cognitive exercises',
     version: '1.0.0',
     permissions: ['storage', 'alarms', 'notifications'],
     action: {
-      default_title: 'Dual N-Back',
+      default_title: 'Nuro - Dual N-Back Master',
       default_popup: 'popup.html',
     },
   },

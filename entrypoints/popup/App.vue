@@ -365,7 +365,7 @@ onMounted(async () => {
     />
 
     <header class="header">
-      <h1 class="title">Dual N-Back</h1>
+      <h1 class="title">Nuro</h1>
     </header>
 
     <main class="main">

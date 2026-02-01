@@ -1,6 +1,6 @@
-# Dual N-Back
+# Nuro - Dual N-Back Master
 
-A minimal, black-and-white Chrome extension for cognitive training with the Dual N-Back task.
+A minimal, Notion-style Chrome extension for cognitive training with the Dual N-Back task.
 
 ## What is Dual N-Back?
 

@@ -50,7 +50,7 @@ export default defineBackground(() => {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icon/128.png'),
         title: 'Time to Train!',
-        message: 'Keep your brain sharp with a quick Dual N-Back session.',
+        message: 'Keep your brain sharp with a quick Nuro session.',
         priority: 2,
       });
     } catch (e) {
