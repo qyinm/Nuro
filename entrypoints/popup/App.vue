@@ -360,7 +360,9 @@ onMounted(async () => {
     <main class="main">
       <!-- Tutorial -->
       <template v-if="showTutorial">
-        <Tutorial @complete="handleTutorialComplete" />
+        <div class="tutorial-view">
+          <Tutorial @complete="handleTutorialComplete" />
+        </div>
       </template>
 
       <!-- Game View -->
@@ -447,11 +449,13 @@ onMounted(async () => {
 
       <!-- Settings View -->
       <template v-else-if="currentView === 'settings'">
-        <SettingsPanel
-          :settings="settings"
-          @update="handleSettingsUpdate"
-          @clear-data="handleClearData"
-        />
+        <div class="settings-view">
+          <SettingsPanel
+            :settings="settings"
+            @update="handleSettingsUpdate"
+            @clear-data="handleClearData"
+          />
+        </div>
       </template>
     </main>
 
@@ -493,18 +497,19 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
   gap: 20px;
   padding: 20px;
   overflow-y: auto;
 }
 
-.stats-view {
+.stats-view,
+.settings-view,
+.tutorial-view {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-bottom: 8px;
+  align-self: flex-start;
 }
 
 .warning {
