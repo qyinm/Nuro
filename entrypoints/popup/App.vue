@@ -193,6 +193,10 @@ function resumeGame() {
 }
 
 async function endGame() {
+  console.log('=== endGame called ===');
+  console.log('gameStore.status:', gameStore.status);
+  console.log('gameStore.startedAt:', gameStore.startedAt);
+
   if (gameLoopTimer) {
     clearTimeout(gameLoopTimer);
     gameLoopTimer = null;
@@ -200,9 +204,11 @@ async function endGame() {
 
   // Generate session record FIRST (synchronously) before any async operations
   // This ensures lastSession is set immediately when status becomes 'finished'
-  if (gameStore.startedAt) {
-    lastSession.value = gameStore.finishSession();
-  }
+  console.log('Calling finishSession...');
+  const session = gameStore.finishSession();
+  console.log('finishSession returned:', session);
+  lastSession.value = session;
+  console.log('lastSession.value set to:', lastSession.value);
 
   // Clear interrupted session
   await storage.clearInterruptedSession();
@@ -214,6 +220,10 @@ async function endGame() {
       adaptiveNLevel: gameStore.adaptiveNLevel,
     });
   }
+
+  console.log('=== endGame finished ===');
+  console.log('Final gameStore.status:', gameStore.status);
+  console.log('Final lastSession.value:', lastSession.value);
 }
 
 function goHome() {

@@ -1,4 +1,12 @@
 import type { Trial, TrialResponse, TrialOutcome, Session } from '../types/game';
+import {
+  LEVEL_UP_THRESHOLD,
+  LEVEL_UP_MIN_INDIVIDUAL,
+  LEVEL_DOWN_THRESHOLD,
+  LEVEL_DOWN_MIN_INDIVIDUAL,
+  MIN_N_LEVEL,
+  MAX_N_LEVEL
+} from './constants';
 
 /**
  * Determine the outcome of a single stimulus response
@@ -138,15 +146,6 @@ export function calculateAdaptiveLevel(
   audioAccuracy: number,
   combinedAccuracy: number
 ): number {
-  const {
-    LEVEL_UP_THRESHOLD,
-    LEVEL_UP_MIN_INDIVIDUAL,
-    LEVEL_DOWN_THRESHOLD,
-    LEVEL_DOWN_MIN_INDIVIDUAL,
-    MIN_N_LEVEL,
-    MAX_N_LEVEL
-  } = require('./constants');
-
   // Level up condition
   if (
     combinedAccuracy >= LEVEL_UP_THRESHOLD &&
