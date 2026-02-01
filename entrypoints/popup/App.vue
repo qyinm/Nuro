@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useGameStore } from '../../src/stores/gameStore';
 import { useStatsStore } from '../../src/stores/statsStore';
 import { useAudio } from '../../src/composables/useAudio';
 import { useKeyboard } from '../../src/composables/useKeyboard';
 import { useStorage } from '../../src/composables/useStorage';
-import { TRIAL_INTERVAL_MS, STIMULUS_DURATION_MS, DEFAULT_SETTINGS } from '../../src/utils/constants';
+import { TRIAL_INTERVAL_MS, STIMULUS_DURATION_MS, TRIAL_FEEDBACK_DELAY_MS, DEFAULT_SETTINGS } from '../../src/utils/constants';
 import type { Session, Settings, InterruptedSession } from '../../src/types/game';
 
 // Components
@@ -78,6 +78,15 @@ const keyboard = useKeyboard({
       goHome();
     }
   },
+});
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (gameLoopTimer) {
+    clearTimeout(gameLoopTimer);
+    gameLoopTimer = null;
+  }
+  audio.stop();
 });
 
 // Computed
@@ -170,7 +179,7 @@ function runTrial() {
       setTimeout(() => {
         showFeedback.value = false;
         runTrial();
-      }, 200);
+      }, TRIAL_FEEDBACK_DELAY_MS);
     } else {
       endGame();
     }
@@ -287,7 +296,7 @@ function handleNavigate(view: View) {
 }
 
 // Settings
-async function handleSettingsUpdate(key: keyof Settings, value: any) {
+async function handleSettingsUpdate<K extends keyof Settings>(key: K, value: Settings[K]) {
   settings.value = { ...settings.value, [key]: value };
   await storage.saveSettings({ [key]: value });
 

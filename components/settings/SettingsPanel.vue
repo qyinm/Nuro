@@ -7,7 +7,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update', key: keyof Settings, value: any): void;
+  (e: 'update', key: keyof Settings, value: Settings[keyof Settings]): void;
   (e: 'clearData'): void;
 }>();
 
