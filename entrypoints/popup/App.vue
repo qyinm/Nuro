@@ -1,20 +1,38 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useGameStore } from '../../src/stores/gameStore';
+import { useStatsStore } from '../../src/stores/statsStore';
 import { useAudio } from '../../src/composables/useAudio';
 import { useKeyboard } from '../../src/composables/useKeyboard';
-import { TRIAL_INTERVAL_MS, STIMULUS_DURATION_MS } from '../../src/utils/constants';
+import { useStorage } from '../../src/composables/useStorage';
+import { TRIAL_INTERVAL_MS, STIMULUS_DURATION_MS, DEFAULT_SETTINGS } from '../../src/utils/constants';
+import type { Session, Settings, InterruptedSession } from '../../src/types/game';
+
+// Components
 import GameBoard from '../../components/game/GameBoard.vue';
 import GameControls from '../../components/game/GameControls.vue';
 import GameStatus from '../../components/game/GameStatus.vue';
 import InputIndicator from '../../components/game/InputIndicator.vue';
 import GameResults from '../../components/game/GameResults.vue';
-import type { Session } from '../../src/types/game';
+import ResumeDialog from '../../components/game/ResumeDialog.vue';
+import NavBar from '../../components/ui/NavBar.vue';
+import StatsOverview from '../../components/stats/StatsOverview.vue';
+import TrendChart from '../../components/stats/TrendChart.vue';
+import SessionHistory from '../../components/stats/SessionHistory.vue';
+import AccuracyByLevel from '../../components/stats/AccuracyByLevel.vue';
+import SettingsPanel from '../../components/settings/SettingsPanel.vue';
 
 const gameStore = useGameStore();
+const statsStore = useStatsStore();
+const storage = useStorage();
 const audio = useAudio();
 
-// Local state
+// View state
+type View = 'game' | 'stats' | 'settings';
+const currentView = ref<View>('game');
+const settings = ref<Settings>({ ...DEFAULT_SETTINGS });
+
+// Local game state
 const activePosition = ref<number | null>(null);
 const showFeedback = ref(false);
 const feedbackType = ref<'correct' | 'incorrect' | null>(null);
@@ -22,6 +40,10 @@ const positionPressed = ref(false);
 const audioPressed = ref(false);
 const lastSession = ref<Session | null>(null);
 const previousLevel = ref(0);
+
+// Session recovery
+const interruptedSession = ref<InterruptedSession | null>(null);
+const showResumeDialog = ref(false);
 
 // Keyboard handling
 const keyboard = useKeyboard({
@@ -38,6 +60,7 @@ const keyboard = useKeyboard({
     }
   },
   onStartPause: () => {
+    if (currentView.value !== 'game') return;
     if (gameStore.status === 'idle' || gameStore.status === 'finished') {
       startGame();
     } else if (gameStore.status === 'paused') {
@@ -67,6 +90,10 @@ const levelChange = computed(() => {
   return 'same';
 });
 
+const showNav = computed(() =>
+  gameStore.status === 'idle' || gameStore.status === 'finished'
+);
+
 // Game loop
 let gameLoopTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -74,6 +101,7 @@ function startGame() {
   previousLevel.value = gameStore.adaptiveMode ? gameStore.adaptiveNLevel : gameStore.nLevel;
   gameStore.startSession();
   lastSession.value = null;
+  showResumeDialog.value = false;
   runTrial();
 }
 
@@ -84,6 +112,9 @@ function runTrial() {
   }
 
   if (gameStore.status === 'paused') return;
+
+  // Save state for recovery
+  saveSessionState();
 
   // Reset input state
   positionPressed.value = false;
@@ -149,6 +180,7 @@ function pauseGame() {
     gameLoopTimer = null;
   }
   audio.stop();
+  saveSessionState();
 }
 
 function resumeGame() {
@@ -156,15 +188,24 @@ function resumeGame() {
   runTrial();
 }
 
-function endGame() {
+async function endGame() {
   if (gameLoopTimer) {
     clearTimeout(gameLoopTimer);
     gameLoopTimer = null;
   }
 
-  // Generate session record
+  // Clear interrupted session
+  await storage.clearInterruptedSession();
+
+  // Generate and save session record
   if (gameStore.startedAt) {
     lastSession.value = gameStore.finishSession();
+    if (lastSession.value) {
+      await statsStore.addSession(lastSession.value);
+      await storage.saveSettings({
+        adaptiveNLevel: gameStore.adaptiveNLevel,
+      });
+    }
   }
 }
 
@@ -184,102 +225,241 @@ function playAgain() {
   startGame();
 }
 
-// Initialize audio on mount
-onMounted(() => {
+// Session recovery
+async function saveSessionState() {
+  if (gameStore.status === 'idle' || gameStore.status === 'finished') return;
+
+  const state: InterruptedSession = {
+    sessionId: gameStore.sessionId,
+    nLevel: gameStore.nLevel,
+    currentTrialIndex: gameStore.currentTrialIndex,
+    sequence: gameStore.sequence,
+    responses: gameStore.responses,
+    startedAt: gameStore.startedAt || Date.now(),
+    interruptedAt: Date.now(),
+  };
+
+  await storage.saveInterruptedSession(state);
+}
+
+async function checkForInterruptedSession() {
+  const interrupted = await storage.getInterruptedSession();
+  if (interrupted) {
+    interruptedSession.value = interrupted;
+    showResumeDialog.value = true;
+  }
+}
+
+function handleResumeSession() {
+  if (!interruptedSession.value) return;
+
+  gameStore.restoreSession({
+    status: 'paused',
+    nLevel: interruptedSession.value.nLevel,
+    currentTrialIndex: interruptedSession.value.currentTrialIndex,
+    sequence: interruptedSession.value.sequence,
+    responses: interruptedSession.value.responses,
+    sessionId: interruptedSession.value.sessionId,
+    startedAt: interruptedSession.value.startedAt,
+    stimulusOnsetTime: null,
+  });
+
+  showResumeDialog.value = false;
+  interruptedSession.value = null;
+  resumeGame();
+}
+
+async function handleDiscardSession() {
+  await storage.clearInterruptedSession();
+  showResumeDialog.value = false;
+  interruptedSession.value = null;
+}
+
+// Navigation
+function handleNavigate(view: View) {
+  currentView.value = view;
+}
+
+// Settings
+async function handleSettingsUpdate(key: keyof Settings, value: any) {
+  settings.value = { ...settings.value, [key]: value };
+  await storage.saveSettings({ [key]: value });
+
+  // Sync with game store
+  if (key === 'adaptiveMode') {
+    gameStore.adaptiveMode = value;
+  }
+  if (key === 'soundEffectsEnabled') {
+    gameStore.soundEffectsEnabled = value;
+  }
+  if (key === 'defaultNLevel') {
+    gameStore.setNLevel(value);
+  }
+}
+
+async function handleClearData() {
+  if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+    await statsStore.clearAllStats();
+    settings.value = { ...DEFAULT_SETTINGS };
+    await storage.saveSettings(settings.value);
+  }
+}
+
+// Initialize
+onMounted(async () => {
+  // Load settings
+  settings.value = await storage.getSettings();
+  gameStore.adaptiveMode = settings.value.adaptiveMode;
+  gameStore.adaptiveNLevel = settings.value.adaptiveNLevel;
+  gameStore.soundEffectsEnabled = settings.value.soundEffectsEnabled;
+  gameStore.setNLevel(settings.value.defaultNLevel);
+
+  // Load stats
+  await statsStore.loadSessions();
+
+  // Check for interrupted session
+  await checkForInterruptedSession();
+
+  // Initialize audio
   audio.initialize();
 });
 </script>
 
 <template>
   <div class="app">
+    <!-- Resume Dialog -->
+    <ResumeDialog
+      v-if="showResumeDialog && interruptedSession"
+      :session="interruptedSession"
+      @resume="handleResumeSession"
+      @discard="handleDiscardSession"
+    />
+
     <header class="header">
       <h1 class="title">Dual N-Back</h1>
     </header>
 
     <main class="main">
-      <!-- Idle State -->
-      <template v-if="gameStore.status === 'idle'">
-        <GameBoard
-          :active-position="null"
-          :show-feedback="false"
-          :feedback-type="null"
-        />
-        <GameControls
-          :n-level="gameStore.adaptiveMode ? gameStore.adaptiveNLevel : gameStore.nLevel"
-          :adaptive-mode="gameStore.adaptiveMode"
-          :disabled="false"
-          @update:n-level="gameStore.setNLevel"
-          @toggle-adaptive="gameStore.toggleAdaptiveMode"
-          @start="startGame"
-        />
+      <!-- Game View -->
+      <template v-if="currentView === 'game'">
+        <!-- Idle State -->
+        <template v-if="gameStore.status === 'idle'">
+          <GameBoard
+            :active-position="null"
+            :show-feedback="false"
+            :feedback-type="null"
+          />
+          <GameControls
+            :n-level="gameStore.adaptiveMode ? gameStore.adaptiveNLevel : gameStore.nLevel"
+            :adaptive-mode="gameStore.adaptiveMode"
+            :disabled="false"
+            @update:n-level="gameStore.setNLevel"
+            @toggle-adaptive="gameStore.toggleAdaptiveMode"
+            @start="startGame"
+          />
 
-        <!-- Audio warning -->
-        <div v-if="audio.state.value.errorMessage" class="warning">
-          ⚠️ {{ audio.state.value.errorMessage }}
+          <div v-if="audio.state.value.errorMessage" class="warning">
+            {{ audio.state.value.errorMessage }}
+          </div>
+        </template>
+
+        <!-- Playing State -->
+        <template v-else-if="isPlaying">
+          <GameStatus
+            :n-level="gameStore.nLevel"
+            :progress="gameStore.progress"
+            :trials-remaining="gameStore.trialsRemaining"
+            :is-warmup="gameStore.isWarmup"
+            :is-paused="gameStore.status === 'paused'"
+          />
+          <GameBoard
+            :active-position="activePosition"
+            :show-feedback="showFeedback"
+            :feedback-type="feedbackType"
+          />
+          <InputIndicator
+            :position-pressed="positionPressed"
+            :audio-pressed="audioPressed"
+            :disabled="gameStore.isWarmup || gameStore.status === 'paused'"
+          />
+
+          <div class="game-hint">
+            <span v-if="gameStore.status === 'paused'">
+              Press <kbd>Space</kbd> to resume
+            </span>
+            <span v-else>
+              Press <kbd>Esc</kbd> to quit
+            </span>
+          </div>
+        </template>
+
+        <!-- Results State -->
+        <template v-else-if="gameStore.status === 'finished' && lastSession">
+          <GameResults
+            :session="lastSession"
+            :new-level="gameStore.adaptiveNLevel"
+            :level-changed="levelChange"
+            @play-again="playAgain"
+            @go-home="goHome"
+          />
+        </template>
+      </template>
+
+      <!-- Stats View -->
+      <template v-else-if="currentView === 'stats'">
+        <div class="stats-view">
+          <StatsOverview
+            :total-sessions="statsStore.totalSessions"
+            :average-accuracy="statsStore.averageAccuracy"
+            :current-streak="statsStore.currentStreak"
+            :best-level="statsStore.bestNLevel"
+            :total-minutes="statsStore.totalTrainingTime"
+            :avg-reaction-time="statsStore.averageReactionTime"
+          />
+          <TrendChart :data="statsStore.accuracyTrend" />
+          <AccuracyByLevel :data="statsStore.accuracyByLevel" />
+          <SessionHistory :sessions="statsStore.recentSessions" />
         </div>
       </template>
 
-      <!-- Playing State -->
-      <template v-else-if="isPlaying">
-        <GameStatus
-          :n-level="gameStore.nLevel"
-          :progress="gameStore.progress"
-          :trials-remaining="gameStore.trialsRemaining"
-          :is-warmup="gameStore.isWarmup"
-          :is-paused="gameStore.status === 'paused'"
-        />
-        <GameBoard
-          :active-position="activePosition"
-          :show-feedback="showFeedback"
-          :feedback-type="feedbackType"
-        />
-        <InputIndicator
-          :position-pressed="positionPressed"
-          :audio-pressed="audioPressed"
-          :disabled="gameStore.isWarmup || gameStore.status === 'paused'"
-        />
-
-        <div class="game-hint">
-          <span v-if="gameStore.status === 'paused'">
-            Press <kbd>Space</kbd> to resume
-          </span>
-          <span v-else>
-            Press <kbd>Esc</kbd> to quit
-          </span>
-        </div>
-      </template>
-
-      <!-- Results State -->
-      <template v-else-if="gameStore.status === 'finished' && lastSession">
-        <GameResults
-          :session="lastSession"
-          :new-level="gameStore.adaptiveNLevel"
-          :level-changed="levelChange"
-          @play-again="playAgain"
-          @go-home="goHome"
+      <!-- Settings View -->
+      <template v-else-if="currentView === 'settings'">
+        <SettingsPanel
+          :settings="settings"
+          @update="handleSettingsUpdate"
+          @clear-data="handleClearData"
         />
       </template>
     </main>
+
+    <!-- Navigation -->
+    <NavBar
+      v-if="showNav"
+      :active-view="currentView"
+      @navigate="handleNavigate"
+    />
   </div>
 </template>
 
 <style scoped>
 .app {
   width: 360px;
-  min-height: 480px;
+  height: 540px;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-primary);
+  overflow: hidden;
 }
 
 .header {
-  padding: 16px;
+  padding: 12px 16px;
   text-align: center;
   border-bottom: 1px solid var(--accent-subtle);
+  flex-shrink: 0;
 }
 
 .title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
@@ -291,12 +471,21 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  padding: 24px;
+  gap: 20px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.stats-view {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
 }
 
 .warning {
-  padding: 12px 16px;
+  padding: 10px 14px;
   background-color: rgba(251, 191, 36, 0.1);
   border: 1px solid var(--warning);
   border-radius: 8px;
