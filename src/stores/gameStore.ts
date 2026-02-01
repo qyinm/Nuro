@@ -44,7 +44,7 @@ export const useGameStore = defineStore('game', () => {
   function startSession(level?: number) {
     const useLevel = level ?? (adaptiveMode.value ? adaptiveNLevel.value : nLevel.value);
 
-    sessionId.value = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    sessionId.value = `session_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     nLevel.value = useLevel;
     sequence.value = generateSequence(useLevel);
     responses.value = [];

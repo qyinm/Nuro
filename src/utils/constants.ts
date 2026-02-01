@@ -17,6 +17,11 @@ export const RESPONSE_WINDOW_MS = 2900;
 export const DEBOUNCE_MS = 100;
 export const MIN_REACTION_TIME_MS = 100;  // Below this is anticipation
 
+// UI timing constants
+export const INPUT_FLASH_DURATION_MS = 150;
+export const TRIAL_FEEDBACK_DELAY_MS = 200;
+export const VOICE_LOADING_TIMEOUT_MS = 2000;
+
 // Session recovery
 export const SESSION_RECOVERY_TIMEOUT_MS = 5 * 60 * 1000;  // 5 minutes
 
