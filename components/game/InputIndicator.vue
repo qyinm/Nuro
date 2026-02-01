@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, onUnmounted } from 'vue';
+import { INPUT_FLASH_DURATION_MS } from '../../src/utils/constants';
 
 const props = defineProps<{
   positionPressed: boolean;
@@ -10,18 +11,28 @@ const props = defineProps<{
 const positionFlash = ref(false);
 const audioFlash = ref(false);
 
+let positionTimer: ReturnType<typeof setTimeout> | null = null;
+let audioTimer: ReturnType<typeof setTimeout> | null = null;
+
 watch(() => props.positionPressed, (pressed) => {
   if (pressed) {
     positionFlash.value = true;
-    setTimeout(() => positionFlash.value = false, 150);
+    if (positionTimer) clearTimeout(positionTimer);
+    positionTimer = setTimeout(() => positionFlash.value = false, INPUT_FLASH_DURATION_MS);
   }
 });
 
 watch(() => props.audioPressed, (pressed) => {
   if (pressed) {
     audioFlash.value = true;
-    setTimeout(() => audioFlash.value = false, 150);
+    if (audioTimer) clearTimeout(audioTimer);
+    audioTimer = setTimeout(() => audioFlash.value = false, INPUT_FLASH_DURATION_MS);
   }
+});
+
+onUnmounted(() => {
+  if (positionTimer) clearTimeout(positionTimer);
+  if (audioTimer) clearTimeout(audioTimer);
 });
 </script>
 

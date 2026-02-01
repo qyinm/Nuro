@@ -1,5 +1,6 @@
 import { ref, onMounted } from 'vue';
 import type { AudioState } from '../types/game';
+import { VOICE_LOADING_TIMEOUT_MS } from '../utils/constants';
 
 export function useAudio() {
   const state = ref<AudioState>({
@@ -37,7 +38,7 @@ export function useAudio() {
         setTimeout(() => {
           speechSynthesis.removeEventListener('voiceschanged', handler);
           resolve();
-        }, 2000);
+        }, VOICE_LOADING_TIMEOUT_MS);
       });
     }
 
