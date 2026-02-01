@@ -7,6 +7,7 @@ import {
   TARGET_STORAGE_BYTES,
   SESSION_RECOVERY_TIMEOUT_MS,
 } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEYS = {
   SESSIONS: 'nback_sessions',
@@ -25,7 +26,7 @@ export function useStorage() {
       const result = await chrome.storage.local.get(STORAGE_KEYS.SESSIONS);
       return result[STORAGE_KEYS.SESSIONS] || [];
     } catch (e) {
-      console.error('Failed to get sessions:', e);
+      logger.error('Failed to get sessions:', e);
       return [];
     }
   }
@@ -48,7 +49,7 @@ export function useStorage() {
       // Check and cleanup storage if needed
       await cleanupStorageIfNeeded();
     } catch (e) {
-      console.error('Failed to save session:', e);
+      logger.error('Failed to save session:', e);
     }
   }
 
@@ -73,7 +74,7 @@ export function useStorage() {
         }
       }
     } catch (e) {
-      console.error('Failed to cleanup storage:', e);
+      logger.error('Failed to cleanup storage:', e);
     }
   }
 
@@ -85,7 +86,7 @@ export function useStorage() {
       const result = await chrome.storage.local.get(STORAGE_KEYS.SETTINGS);
       return { ...DEFAULT_SETTINGS, ...result[STORAGE_KEYS.SETTINGS] };
     } catch (e) {
-      console.error('Failed to get settings:', e);
+      logger.error('Failed to get settings:', e);
       return { ...DEFAULT_SETTINGS };
     }
   }
@@ -99,7 +100,7 @@ export function useStorage() {
       const updated = { ...current, ...settings };
       await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: updated });
     } catch (e) {
-      console.error('Failed to save settings:', e);
+      logger.error('Failed to save settings:', e);
     }
   }
 
@@ -123,7 +124,7 @@ export function useStorage() {
 
       return interrupted;
     } catch (e) {
-      console.error('Failed to get interrupted session:', e);
+      logger.error('Failed to get interrupted session:', e);
       return null;
     }
   }
@@ -135,7 +136,7 @@ export function useStorage() {
     try {
       await chrome.storage.local.set({ [STORAGE_KEYS.INTERRUPTED]: session });
     } catch (e) {
-      console.error('Failed to save interrupted session:', e);
+      logger.error('Failed to save interrupted session:', e);
     }
   }
 
@@ -146,7 +147,7 @@ export function useStorage() {
     try {
       await chrome.storage.local.remove(STORAGE_KEYS.INTERRUPTED);
     } catch (e) {
-      console.error('Failed to clear interrupted session:', e);
+      logger.error('Failed to clear interrupted session:', e);
     }
   }
 
@@ -170,7 +171,7 @@ export function useStorage() {
     try {
       await chrome.storage.local.clear();
     } catch (e) {
-      console.error('Failed to clear data:', e);
+      logger.error('Failed to clear data:', e);
     }
   }
 

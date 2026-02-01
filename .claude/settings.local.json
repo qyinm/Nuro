@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_oh-my-claudecode_omc-tools__lsp_diagnostics_directory",
+      "mcp__plugin_oh-my-claudecode_omc-tools__ast_grep_search",
+      "Skill(oh-my-claudecode:ultrawork)"
+    ]
+  }
+}

@@ -1,3 +1,5 @@
+import { logger } from '../src/utils/logger';
+
 export default defineBackground(() => {
   const ALARM_NAME = 'daily-reminder';
   const STORAGE_KEY = 'nback_settings';
@@ -52,7 +54,7 @@ export default defineBackground(() => {
         priority: 2,
       });
     } catch (e) {
-      console.error('Failed to show notification:', e);
+      logger.error('Failed to show notification:', e);
     }
   }
 
@@ -93,7 +95,7 @@ export default defineBackground(() => {
         await updateAlarm(settings);
       }
     } catch (e) {
-      console.error('Failed to initialize background:', e);
+      logger.error('Failed to initialize background:', e);
     }
   }
 

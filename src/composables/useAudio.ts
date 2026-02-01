@@ -1,6 +1,7 @@
 import { ref, onMounted } from 'vue';
 import type { AudioState } from '../types/game';
 import { VOICE_LOADING_TIMEOUT_MS } from '../utils/constants';
+import { logger } from '../utils/logger';
 
 export function useAudio() {
   const state = ref<AudioState>({
@@ -105,14 +106,14 @@ export function useAudio() {
 
         utterance.onend = () => resolve();
         utterance.onerror = (event) => {
-          console.error('Speech error:', event.error);
+          logger.error('Speech error:', event.error);
           state.value.errorMessage = `Speech error: ${event.error}`;
           resolve();  // Don't reject, just continue
         };
 
         speechSynthesis.speak(utterance);
       } catch (e) {
-        console.error('Speech synthesis error:', e);
+        logger.error('Speech synthesis error:', e);
         state.value.errorMessage = 'Speech synthesis failed';
         resolve();  // Don't reject, just continue
       }
